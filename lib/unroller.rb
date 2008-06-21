@@ -15,6 +15,7 @@ require 'quality_extensions/kernel/trap_chain'
 require 'quality_extensions/kernel/capture_output'
 require 'quality_extensions/string/with_knowledge_of_color'
 require 'quality_extensions/exception/inspect_with_backtrace'
+require 'quality_extensions/regexp/join'
 require 'quality_extensions/symbol/match'
 require 'quality_extensions/module/alias_method_chain'
 require 'quality_extensions/module/malias_method_chain'
@@ -157,6 +158,7 @@ class Unroller
     @max_depth = nil                # Don't trace anything when the depth is greater than this threshold. (This is *relative* to the starting depth, so whatever level you start at is considered depth "1".)
     @line_matches = nil             # The source code for that line matches this regular expression
     @presets = []
+    @file_match = /./
     @exclude_classes = []
     @include_classes = []           # These will override classes that have been excluded via exclude_classes. So if you both exclude and include a class, it will be included.
     @exclude_methods = []
@@ -221,11 +223,38 @@ class Unroller
       end
     end
 
+    #-----------------------------------------------------------------------------------------------
     # Options
-    options[:max_lines]       = options.delete(:head)     if options.has_key?(:head)
-    options[:condition]       = options.delete(:if)       if options.has_key?(:if)
-    options[:initial_depth]   = options.delete(:depth)    if options.has_key?(:depth)
-    options[:initial_depth]   = caller(0).size            if options[:initial_depth] == :use_call_stack_depth
+
+    # Aliases
+    options[:max_lines]       = options.delete(:head)       if options.has_key?(:head)
+    options[:condition]       = options.delete(:if)         if options.has_key?(:if)
+    options[:initial_depth]   = options.delete(:depth)      if options.has_key?(:depth)
+    options[:initial_depth]   = caller(0).size              if options[:initial_depth] == :use_call_stack_depth
+    options[:file_match]      = options.delete(:file)       if options.has_key?(:file)
+    options[:file_match]      = options.delete(:path)       if options.has_key?(:path)
+    options[:file_match]      = options.delete(:path_match) if options.has_key?(:path_match)
+    options[:dir_match]       = options.delete(:dir)        if options.has_key?(:dir)
+    options[:dir_match]       = options.delete(:dir_match)  if options.has_key?(:dir_match)
+
+    if (a = options.delete(:dir_match))
+      unless a.is_a?(Regexp)
+        if a =~ /.*\.rb/
+          # They probably passed in __FILE__ and wanted us to File.expand_path(File.dirname()) it for them (and who can blame them? that's a lot of junk to type!!)
+          a = File.expand_path(File.dirname(a))
+        end
+        a = /^#{Regexp.escape(a)}/ # Must start with that entire directory path
+      end
+      options[:file_match] = a
+    end
+    if (a = options.delete(:file_match))
+      # Coerce it into a Regexp
+      unless a.is_a?(Regexp)
+        a = /#{Regexp.escape(a)}/ 
+      end
+      options[:file_match] = a
+    end
+
     if options.has_key?(:exclude_classes)
       # Coerce it into an array of ClassExclusions
       a = options.delete(:exclude_classes)
@@ -246,6 +275,7 @@ class Unroller
     options[:line_matches]       = options.delete(:line_matches)       if options.has_key?(:line_matches)
     populate(options)
 
+    #-----------------------------------------------------------------------------------------------
     # Private
     @call_stack = []        # Used to keep track of what method we're currently in so that when we hit a 'return' event we can display something useful.
                             # This is useful for two reasons:
@@ -690,6 +720,9 @@ protected
     end
   end
   def calling_interesting_line?
+    path = File.expand_path(@file)  # rescue @file
+    #puts "Checking #{path} !~ #{@file_match}"
+    return false if path !~ @file_match
     return true if @line_matches.nil?   # No filter to apply
     line = code_for(@file, @line) or return false
     (line =~ @line_matches)
@@ -1167,6 +1200,29 @@ if $0 == __FILE__
     foo = 'foo'
     $a_global = '2nd time'
     blah = 'blah'
+  end
+
+  herald '-----------------------------------------------------------'
+  herald 'Test :file_match'
+  herald 'Should only see calls to in_this_file'
+  require_local '../test/other_file'
+  def in_this_file
+    a = 'a'
+    b = 'b'
+    c = 'c'
+    etc = 'etc.'
+  end
+  Unroller::trace(:file_match => __FILE__) do
+    in_this_file()
+    in_other_file()
+  end
+
+  herald '-----------------------------------------------------------'
+  herald 'Test :dir_match'
+  herald 'Should only see calls to in_this_file'
+  Unroller::trace(:dir_match => __FILE__) do
+    in_this_file()
+    in_other_file()
   end
 
   herald '-----------------------------------------------------------'

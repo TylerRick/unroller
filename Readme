@@ -28,7 +28,6 @@ It's a great tool for exploring 3rd-party source code that you aren't familiar w
 
 Just insert these line before the point you want to start tracing:
 
-  require 'rubygems'
   require 'unroller'
   Unroller::trace
 
@@ -41,6 +40,11 @@ You can also pass a block to <tt>Unroller::trace</tt> and it will automatically 
   Unroller::trace do
   	...
   end
+
+If you want really quick and dirty:
+  require 'tron'
+  ...
+  troff
 
 ===Example
 
@@ -109,9 +113,7 @@ And the somewhat trickier but arguably more elegant way that still uses a block 
     code_that_may_or_may_not_be_traced
   end
 
-The other reason that the latter way is preferred is that the return value of the code-being-traced is preserved. With the first method, you could end up breaking things if the trace_off happens to be the last value in your method (because then the value of trace_off will be used as the return valuel).
-
-
+The other reason that the latter way is preferred is that the return value of the code-being-traced is preserved. With the first method, you could end up breaking things if the trace_off happens to be the last value in your method (because then the value of trace_off will be used as the return value).
 
 Note: The actual application code (the code in the block passed to Unroller::trace, if using the block version) will _always_ get executed, with either of these methods. It is only the tracing that we are toggling, not the execution of the code within the trace(d) block.
 
@@ -123,6 +125,10 @@ A couple options are available to help things under control. The two main approa
 
 You may find that your trace is cluttered/dominated by calls to a small set of methods and classes that you don't care about. These options help you to exclude the worst offenders in a hurry:
 
+<tt>:file_match => file_match</tt> ::
+  Unroller will only show a trace for code whose filename matches <tt>file_match</tt>. If <tt>file_match</tt> is not already a regular expression it will be escaped and turned into one (<tt>/file_match/</tt>).
+<tt>:dir_match => dir_match</tt> ::
+  Unroller will only show a trace for code whose filename matches <tt>dir_match</tt>. If <tt>dir_match</tt> is not already a regular expression it will be escaped and turned into one (<tt>/^dir_match/</tt>). Tip: You can simply pass in __FILE__ and it will automatically turn that into File.expand_path(File.dirname(__FILE__)) for you.
 <tt>:exclude_classes</tt> ::
   Unroller won't show a trace for any calls to methods from the given class or classes (regular expressions).
   Pass [/class_name/, :recursive] to also not show the trace for any calls made *from* those uninteresting methods.
