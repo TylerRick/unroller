@@ -1,0 +1,2 @@
+* Made it compatible with Facets 2.4.1
+* Added :file_match, :dir_match
