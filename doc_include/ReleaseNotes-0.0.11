@@ -1,0 +1,2 @@
+* Tested that it still works sanely when we try to turn tracing on when it's already on. It wasn't acting sanely, so changed it until the test "passed".
+* Made it print out the local variables (value inspection) in color (yellow)

@@ -1,0 +1,3 @@
+* Added :line_matches option.
+* Split code_for into code_for and pretty_code_for
+* Added :always_show_raise_events option

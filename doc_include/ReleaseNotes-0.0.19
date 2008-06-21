@@ -1,0 +1,3 @@
+* Interactive debugger:
+  * Fixed a bug with step over
+  * Prettified the menu and made it so you could just press a single letter (rather than requiring you to press Enter after your selection)

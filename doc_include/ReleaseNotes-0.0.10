@@ -1,0 +1,4 @@
+* Added separate @internal_depth tracker in addition to @depth (which is what we display to the user)
+  * This allows us to use the more user-friendly depth for display purposes while using the internal_depth for features that need an accurate depth counter, like "excluding_calls_made_within_unintersting_call"
+* Moved (do_show_locals if show_args) to *after* the depth is incremented, so that it appears at the correct depth
+* Added show_filename_and_line_numbers, include_c_calls options

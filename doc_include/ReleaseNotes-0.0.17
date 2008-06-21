@@ -1,0 +1,2 @@
+* Added exclude_methods feature
+* Refactored some exclude_classes stuff to use a new ClassExclusion data structure

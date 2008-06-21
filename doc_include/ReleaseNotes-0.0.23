@@ -1,0 +1,3 @@
+* Added Unroller.debug method as a shortcut for interactive debugger mode
+* Changed the default display_style back to 'concise'
+

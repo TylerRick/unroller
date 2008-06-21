@@ -1,0 +1,2 @@
+* Added :debugging/:preset options for specifying presets
+* Added a :dependencies preset
