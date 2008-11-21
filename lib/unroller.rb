@@ -771,7 +771,7 @@ protected
         string = string.code_unroller.make_it_fit(max_for_screen)
       end
 
-      string = string.ljust_without_color(width)    # Handles minimum width
+      string = string.ljust_with_color(width)    # Handles minimum width
     end
 
     @output_line << string.send_if_not_nil(color)

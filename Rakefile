@@ -9,7 +9,7 @@ module Project
   PrettyName = "Ruby Unroller"
   Name       = "unroller"
   RubyForgeName = "unroller"
-  Version    = "0.1.0" 
+  Version    = "0.1.1" 
 end
 
 specification = Gem::Specification.new do |s|
@@ -25,7 +25,7 @@ specification = Gem::Specification.new do |s|
   s.rubyforge_project = Project::Name
   s.platform = Gem::Platform::RUBY
   s.add_dependency("facets", '>=2.4.1')
-  s.add_dependency("quality_extensions", '>=0.1.3')
+  s.add_dependency("quality_extensions", '>=1.1.1')
   s.add_dependency("colored")
   s.add_dependency("termios")
   #s.add_dependency("extensions")
