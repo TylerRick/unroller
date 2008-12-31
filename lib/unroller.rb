@@ -22,6 +22,7 @@ require 'quality_extensions/module/malias_method_chain'
 require 'quality_extensions/module/attribute_accessors'
 require 'quality_extensions/enumerable/select_until'
 require 'quality_extensions/module/bool_attr_accessor'
+require 'quality_extensions/object/pp_s'
 gem 'colored'
 require 'colored'
 #gem 'extensions'
@@ -30,10 +31,8 @@ require 'colored'
 require 'English'
 require 'pp'
 require 'stringio'
-gem 'termios'
-require 'termios'
-gem 'colored'
 
+gem 'colored'
 # To disable color, uncomment this:
 #class String
 #  def colorize(string, options = {})
@@ -42,12 +41,55 @@ gem 'colored'
 #end
 
 begin
-  # Set up termios so that it returns immediately when you press a key.
-  # (http://blog.rezra.com/articles/2005/12/05/single-character-input)
-  t = Termios.tcgetattr(STDIN)
-  save_terminal_attributes = t.dup
-  t.lflag &= ~Termios::ICANON
-  Termios.tcsetattr(STDIN, 0, t)
+  gem 'termios'
+  require 'termios'
+  begin
+    # Set up termios so that it returns immediately when you press a key.
+    # (http://blog.rezra.com/articles/2005/12/05/single-character-input)
+    t = Termios.tcgetattr(STDIN)
+    save_terminal_attributes = t.dup
+    t.lflag &= ~Termios::ICANON
+    Termios.tcsetattr(STDIN, 0, t)
+
+    # Set terminal_attributes back to how we found them...
+    at_exit { Termios.tcsetattr(STDIN, 0, save_terminal_attributes) }
+  rescue RuntimeError => exception    # Necessary for automated testing.
+    if exception.message =~ /can't get terminal parameters/
+      puts 'Warning: Terminal not found.'
+      $interactive = false
+    elsif exception.message =~ /Inappropriate ioctl for device/
+      puts "Warning: #{exception.inspect}"
+      # This error happens when a Rails app is started with script/server -d
+      # By rescuing this error, we should be able to tail log/mongrel.log to see the output.
+    else
+      raise
+    end
+  end
+  $termios_loaded = true
+rescue Gem::LoadError
+  $termios_loaded = false
+end
+
+class IO
+  # Gets a single character, as a string.
+  # Adjusts for the different behavior of getc if we are using termios to get it to return immediately when you press a single key
+  # or if they are not using that behavior and thus have to press Enter after their single key.
+  def getch
+    response = getc
+    if !$termios_loaded
+      next_char = getc
+      new_line_characters_expected = ["\n"]
+      #new_line_characters_expected = ["\n", "\r"] if windows?
+      if next_char.chr.in?(new_line_characters_expected)
+        # Eat the newline character
+      else
+        # Don't eat it
+        # (This case is necessary, for escape sequences, for example, where they press only one key, but it produces multiple characters.)
+        $stdin.ungetc(next_char)
+      end
+    end
+    response.chr
+  end
 end
 
 class String
@@ -86,10 +128,11 @@ class Unroller
     end
     def to_s
       #@variables.inspect
-      @variables.map do |variable|
+      ret = @variables.map do |variable|
         name, value = *variable
         "#{name} = #{value.inspect}"
       end.join('; ').bracket('   (', ')')
+      ret[0..70] + '...'  # Maybe truncating it could be optional in the future, but for now it's just too cluttered
     end
     def verbose_to_s
       @variables.map do |variable|
@@ -103,6 +146,7 @@ class Unroller
     end
   end
   @@instance = nil
+  @@quiting = false
 
   Call = Struct.new(:file, :line_num, :klass, :name, :full_name)
   # AKA stack frame?
@@ -186,6 +230,7 @@ class Unroller
 
     # "Presets"
     # Experimental -- subject to change a lot before it's finalized
+    options[:presets]       = options.delete(:only)            if options.has_key?(:only)
     options[:presets]       = options.delete(:debugging)       if options.has_key?(:debugging)
     options[:presets]       = options.delete(:preset)          if options.has_key?(:preset)
     options[:presets] = [options[:presets]] unless options[:presets].is_a?(Array)
@@ -310,8 +355,11 @@ class Unroller
   end
 
   def trace(&block)
+  catch :quit do
+    throw :quit if @@quiting
     if @tracing
       yield if block_given?
+      # No need to call set_trace_func again; we're already tracing
       return
     end
 
@@ -321,7 +369,13 @@ class Unroller
 
       if @condition.call
 
-        trap_chain("INT") { set_trace_func(nil) }
+        trap_chain("INT") do
+          puts
+          puts 'Exiting trace...'
+          set_trace_func(nil)
+          @@quiting = true
+          throw :quit
+        end
 
 
 
@@ -333,6 +387,7 @@ class Unroller
 
         # (This is the meat of the library right here, so let's set it off with at least 5 blank lines.)
         set_trace_func( proc do |event, file, line, id, binding, klass|
+          return if @@quiting
           begin # begin/rescue block
             @event, @file, @line, @id, @binding, @klass =
               event, file, line, id, binding, klass
@@ -428,15 +483,31 @@ class Unroller
                     if @interactive && !(@last_call == current_call)
                       #(print '(o = Step out of | s = Skip = Step over | default = Step into > '; response = $stdin.gets) if @interactive
 
-                      while response.nil? do
+                      while response.nil? or !response.in? ['i',' ',"\e[C","\e[19~", 'v',"\e[B","\e[20~", 'u',"\e[D", 'r', "\n", 'q'] do
                         print "Debugger (" +
-                          "Step out".menu_item(:red, 'u') + ' | ' +
-                          "Step over (or Enter key)".menu_item(:cyan, 'v') + ' | ' +
-                          "Step into (Space)".menu_item(:green, 'i') + ' | ' + 
+                          "Step into (F8/Right/Space)".menu_item(:green, 'i') + ' | ' + 
+                          "Step over (F9/Down/Enter)".menu_item(:cyan, 'v') + ' | ' +
+                          "Step out (Left)".menu_item(:red, 'u') + ' | ' +
                           "show Locals".menu_item(:yellow, 'l') + ' | ' + 
-                          "Run".menu_item(:blue) + 
+                          "Run".menu_item(:blue) + ' | ' + 
+                          "Quit".menu_item(:magenta) + 
                           ') > '
-                        response = $stdin.getc.chr.downcase
+                        $stdout.flush
+
+                        response = $stdin.getch.downcase
+
+                        # Escape sequence such as the up arrow key ("\e[A")
+                        if response == "\e"
+                          response << (next_char = $stdin.getch)
+                          if next_char == '['
+                            response << (next_char = $stdin.getch)
+                            if next_char.in? ['1', '2']
+                              response << (next_char = $stdin.getch)
+                              response << (next_char = $stdin.getch)
+                            end
+                          end
+                        end
+
                         puts unless response == "\n"
 
                         case response
@@ -446,18 +517,24 @@ class Unroller
                         end
                       end
                     end
+
                     if response
                       case response
-                      when 'r' # Run
-                        @interactive = false
-                      when 'u' # Step out
-                        @silent_until_return_to_this_depth = @internal_depth - 1
-                        #puts "Setting @silent_until_return_to_this_depth = #{@silent_until_return_to_this_depth}"
-                      when 'v', "\n"  # Step over = Ignore anything with a greater depth.
+                      when 'i', ' ', "\e[C", "\e[19~"  # (Right, F8)
+                        # keep right on tracing...
+                      when 'v', "\n", "\e[B", "\e[20~"  # (Down, F9) Step over = Ignore anything with a greater depth.
                         @only_makes_sense_if_next_event_is_call = true
                         @silent_until_return_to_this_depth = @internal_depth
+                      when 'u', "\e[D" # (Left) Step out
+                        @silent_until_return_to_this_depth = @internal_depth - 1
+                        #puts "Setting @silent_until_return_to_this_depth = #{@silent_until_return_to_this_depth}"
+                      when 'r' # Run
+                        @interactive = false
+                      when 'q'
+                        @@quiting = true
+                        throw :quit
                       else
-                        # 'i', ' ', or any other key will simply do the default, which is to keep right on tracing...
+                        # we shouldn't get here
                       end
                     end
 
@@ -635,7 +712,9 @@ class Unroller
     ensure
       trace_off if block_given?
     end # rescue/ensure block
+  end
   end # def trace(&block)
+
   class << self
     alias_method :trace_on, :trace
   end
@@ -1068,13 +1147,13 @@ if $0 == __FILE__
   ('a'..last='y').each do |method_name|
     next_method_name = method_name.next unless method_name == last
     eval <<-End, binding, __FILE__, __LINE__ + 1
-      def #{method_name}
-        #{next_method_name}
+      def _#{method_name}
+        #{next_method_name && "_#{next_method_name}"}
       end
     End
   end
   Unroller::trace(:depth => 5) do
-    a
+    _a
   end
 
   herald '-----------------------------------------------------------'
@@ -1082,13 +1161,13 @@ if $0 == __FILE__
   ('a'..last='y').each do |method_name|
     next_method_name = method_name.next unless method_name == last
     eval <<-End, binding, __FILE__, __LINE__ + 1
-      def #{method_name}
-        #{next_method_name}
+      def _#{method_name}
+        #{next_method_name && "_#{next_method_name}"}
         #{'Unroller::trace(:depth => caller(0).size)' if method_name == last }
       end
     End
   end
-  a
+  _a
   Unroller::trace_off
 
 
@@ -1117,14 +1196,14 @@ if $0 == __FILE__
   ('a'..last='c').each do |method_name|
     next_method_name = method_name.next unless method_name == last
     eval <<-End, binding, __FILE__, __LINE__ + 1
-      def #{method_name}
-        #{next_method_name}
+      def _#{method_name}
+        #{next_method_name && "_#{next_method_name}"}
       end
     End
   end
   go_to_depth_and_call_1(14) do
     Unroller::trace(:depth => :use_call_stack_depth) do
-      a
+      _a
     end
   end
 
@@ -1132,7 +1211,7 @@ if $0 == __FILE__
   herald 'Testing without :depth => :use_call_stack_depth (for comparison)'
   go_to_depth_and_call_1(14) do
     Unroller::trace() do
-      a
+      _a
     end
   end
 
@@ -1141,13 +1220,13 @@ if $0 == __FILE__
   ('a'..last='y').each do |method_name|
     next_method_name = method_name.next unless method_name == last
     eval <<-End, binding, __FILE__, __LINE__ + 1
-      def #{method_name}
-        #{next_method_name}
+      def _#{method_name}
+        #{next_method_name && "_#{next_method_name}"}
       end
     End
   end
   Unroller::trace(:max_depth => 5) do
-    a
+    _a
   end
 
   herald '-----------------------------------------------------------'
@@ -1171,13 +1250,13 @@ if $0 == __FILE__
   ('a'..last='h').each do |method_name|
     next_method_name = method_name.next unless method_name == last
     eval <<-End, binding, __FILE__, __LINE__ + 1
-      def #{method_name}
-        #{next_method_name}
+      def _#{method_name}
+        #{next_method_name && "_#{next_method_name}"}
       end
     End
   end
   Unroller::trace(:max_lines => 20) do
-    a
+    _a
   end
 
   herald '-----------------------------------------------------------'
@@ -1275,8 +1354,8 @@ if $0 == __FILE__
       ('a'..last='h').each do |method_name|
         next_method_name = method_name.next unless method_name == last
         eval <<-End, binding, __FILE__, __LINE__ + 1
-          def #{method_name}
-            #{next_method_name}
+          def _#{method_name}
+            #{next_method_name && "_#{next_method_name}"}
             #{'Interesting::method' if method_name == last }
             #{'Interesting.new.method' if method_name == last }
           end
@@ -1285,7 +1364,7 @@ if $0 == __FILE__
     end
   end
   def create_an_instance_of_UninterestingClassThatCluttersUpOnesTraces
-    Uninteresting::ClassThatCluttersUpOnesTraces.new.a
+    Uninteresting::ClassThatCluttersUpOnesTraces.new._a
   end
   Unroller::trace(:exclude_classes => Uninteresting::ClassThatCluttersUpOnesTraces) do
     create_an_instance_of_UninterestingClassThatCluttersUpOnesTraces
@@ -1496,7 +1575,7 @@ if $0 == __FILE__
   def block_taker(&block)
     puts "I'm the block taker. I take blocks."
     puts "Please Step Over the next line."
-    yield   # buggy!
+    yield   # buggy! it keeps stopping at every line in the yielded block, but shouldn't. 
     # false:: (unroller.rb:1433) (line): ??
     puts "Done yielding to the block"
   end
