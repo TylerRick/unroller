@@ -224,7 +224,7 @@ class Unroller
       # (In the future, might add "break out of this call" option to stop watching anything until we return from the current method... etc.)
     instance_variables.each do |v|
       self.class.class_eval do
-        attr_accessor v.gsub!(/^@/, '')
+        attr_accessor v.to_s.gsub!(/^@/, '')
       end
     end
 
