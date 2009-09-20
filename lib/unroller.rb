@@ -1,5 +1,5 @@
-require 'rubygems'
-gem 'facets'
+#require 'rubygems'
+#gem 'facets'
 require 'facets'
 require 'facets/methodspace'
 require 'facets/kernel/populate'
@@ -9,7 +9,8 @@ require 'facets/kernel/returning'
 #require 'facets/string/bracket'
 #require 'facets/string/index_all'
 #require 'facets/hash/reverse_merge'
-gem 'quality_extensions'
+
+#gem 'quality_extensions'
 require 'quality_extensions/object/send_if_not_nil'
 require 'quality_extensions/kernel/trap_chain'
 require 'quality_extensions/kernel/capture_output'
@@ -23,7 +24,8 @@ require 'quality_extensions/module/attribute_accessors'
 require 'quality_extensions/enumerable/select_until'
 require 'quality_extensions/module/bool_attr_accessor'
 require 'quality_extensions/object/pp_s'
-gem 'colored'
+
+#gem 'colored'
 require 'colored'
 #gem 'extensions'
 #require 'extensions/object'
@@ -32,7 +34,6 @@ require 'English'
 require 'pp'
 require 'stringio'
 
-gem 'colored'
 # To disable color, uncomment this:
 #class String
 #  def colorize(string, options = {})
@@ -41,7 +42,7 @@ gem 'colored'
 #end
 
 begin
-  gem 'termios'
+  #gem 'termios' # or arika-ruby-termios, whose latest vesion is 0.9.6 (the native extension for which installs for me with Ruby 1.9.1) newer than ruby-termios's latest 0.9.4 (which won't install for me)
   require 'termios'
   begin
     # Set up termios so that it returns immediately when you press a key.
