@@ -386,7 +386,7 @@ class Unroller
 
 
         # (This is the meat of the library right here, so let's set it off with at least 5 blank lines.)
-        set_trace_func( proc do |event, file, line, id, binding, klass|
+        set_trace_func( lambda do |event, file, line, id, binding, klass|
           return if @@quiting
           begin # begin/rescue block
             @event, @file, @line, @id, @binding, @klass =
