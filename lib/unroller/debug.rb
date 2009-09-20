@@ -1,0 +1,3 @@
+require 'unroller'
+Unroller::debug
+

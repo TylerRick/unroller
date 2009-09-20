@@ -42,9 +42,12 @@ You can also pass a block to <tt>Unroller::trace</tt> and it will automatically 
   end
 
 If you want really quick and dirty:
-  require 'tron'
+  require 'unroller/tron'
   ...
-  troff
+
+Or, for the interactive debugger:
+  require 'unroller/debug'
+  ...
 
 ===Example
 

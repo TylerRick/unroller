@@ -1,2 +1,2 @@
 require 'unroller'
-tron
+Unroller::trace_on
