@@ -9,7 +9,7 @@ module Project
   PrettyName = "Ruby Unroller"
   Name       = "unroller"
   RubyForgeName = "unroller"
-  Version    = "0.1.3" 
+  Version    = "1.0.0" 
 end
 
 specification = Gem::Specification.new do |s|
@@ -22,7 +22,7 @@ specification = Gem::Specification.new do |s|
 
     It is recommended that you also install arika-ruby-termios so that you don't have to press enter after each command.
   EOF
-  #s.email = "#{Project::Name}-developer@rubyforge.org"
+  s.email = "rubyforge.org@tylerrick.com"
   s.homepage = "http://#{Project::Name}.rubyforge.org"
   s.rubyforge_project = Project::Name
   s.platform = Gem::Platform::RUBY
