@@ -166,6 +166,19 @@ class Unroller
     end
   end
 
+  class ClassInclusion
+    bool_attr_reader :recursive
+    attr_reader :regexp
+    def initialize(klass, *flags)
+      raise ArgumentError if !(Module === klass || String === klass || Symbol === klass || Regexp === klass)
+      klass = klass.name if Module === klass
+      @regexp =
+        Regexp === klass ?
+          klass :
+          /#{klass.to_s}/
+      @recursive = true if flags.include?(:recursive)
+    end
+  end
   # Helper classes
   #-------------------------------------------------------------------------------------------------
 
@@ -308,8 +321,13 @@ class Unroller
       a.map! {|e| e = ClassExclusion.new(e) unless e.is_a?(ClassExclusion); e }
       @exclude_classes.concat a
     end
+
     if options.has_key?(:include_classes)
-      # :todo:
+      a = options.delete(:include_classes)
+      a = [a] unless a.is_a?(Array)
+      a.map! {|e| e = ClassInclusion.new(e) unless e.is_a?(ClassInclusion); e }
+      @include_classes.concat a
+      puts "using include_classes: #{@include_classes}"
     end
     if options.has_key?(:exclude_methods)
       # Coerce it into an array of Regexp's
@@ -318,7 +336,14 @@ class Unroller
       a.map! {|e| e = /^#{e}$/ unless e.is_a?(Regexp); e }
       @exclude_methods.concat a
     end
-    options[:line_matches]       = options.delete(:line_matches)       if options.has_key?(:line_matches)
+    if options.has_key?(:include_methods)
+      # Coerce it into an array of Regexp's
+      a = options.delete(:include_methods)
+      a = [a] unless a.is_a?(Array)
+      a.map! {|e| e = /#{e}/ unless e.is_a?(Regexp); e }
+      @include_methods.concat a
+    end
+    options[:line_matches] = options.delete(:line_matches) if options.has_key?(:line_matches)
     populate(options)
 
     #-----------------------------------------------------------------------------------------------
@@ -692,7 +717,7 @@ class Unroller
 
 
           rescue Exception => exception
-            puts exception.inspect
+            puts exception.inspect + exception.backtrace.join("\n") rescue nil
             raise
           end # begin/rescue block
         end) # set_trace_func
@@ -779,7 +804,14 @@ protected
   def too_far?
     @max_lines and (@lines_output > @max_lines)
   end
+
   def calling_method_in_an_interesting_class?(class_name)
+    if @include_classes.size > 0
+      return @include_classes.any? do |class_inclusion|
+        class_name =~ class_inclusion.regexp
+      end
+    end
+
     !( @exclude_classes + [ClassExclusion.new(self.class.name)] ).any? do |class_exclusion|
       returning(class_name =~ class_exclusion.regexp) do |is_uninteresting|
         if is_uninteresting && class_exclusion.recursive? && @silent_until_return_to_this_depth.nil?
@@ -787,9 +819,12 @@ protected
           @silent_until_return_to_this_depth = @internal_depth
         end
       end
-    end
+    end 
   end
+
   def calling_interesting_method?(name)
+    return @include_methods.any? {|m| name =~ m } if @include_methods.size > 0
+
     !( @exclude_methods ).any? do |regexp|
       returning(name =~ regexp) do |is_uninteresting|
         if is_uninteresting && (recursive = implemented = false) && @silent_until_return_to_this_depth.nil?
