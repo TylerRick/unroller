@@ -1,7 +1,7 @@
 #require 'rubygems'
 #gem 'facets'
 require 'facets'
-require 'facets/methodspace'
+require 'facets/module/method_space'
 require 'facets/kernel/populate'
 require 'facets/kernel/returning'
 #require 'facets/kernel/singleton_class'
